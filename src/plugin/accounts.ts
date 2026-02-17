@@ -312,6 +312,7 @@ export class AccountManager {
   private savePending = false;
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
   private savePromiseResolvers: Array<() => void> = [];
+  private lastSavedSnapshot: string | null = null;
 
   static async loadFromDisk(authFallback?: OAuthAuthDetails): Promise<AccountManager> {
     const stored = await loadAccounts();
@@ -988,11 +989,11 @@ export class AccountManager {
     return [...this.accounts];
   }
 
-  async saveToDisk(): Promise<void> {
+  private buildStorageState(): AccountStorageV4 {
     const claudeIndex = Math.max(0, this.currentAccountIndexByFamily.claude);
     const geminiIndex = Math.max(0, this.currentAccountIndexByFamily.gemini);
-    
-    const storage: AccountStorageV4 = {
+
+    return {
       version: 4,
       accounts: this.accounts.map((a) => ({
         email: a.email,
@@ -1020,9 +1021,13 @@ export class AccountManager {
         claude: claudeIndex,
         gemini: geminiIndex,
       },
-    };
+    }
+  }
 
-    await saveAccounts(storage);
+  async saveToDisk(): Promise<void> {
+    const state = this.buildStorageState();
+    await saveAccounts(state);
+    this.lastSavedSnapshot = JSON.stringify(state);
   }
 
   requestSaveToDisk(): void {
@@ -1032,7 +1037,7 @@ export class AccountManager {
     this.savePending = true;
     this.saveTimeout = setTimeout(() => {
       void this.executeSave();
-    }, 1000);
+    }, 5000);
   }
 
   async flushSaveToDisk(): Promise<void> {
@@ -1047,9 +1052,14 @@ export class AccountManager {
   private async executeSave(): Promise<void> {
     this.savePending = false;
     this.saveTimeout = null;
-    
+
     try {
-      await this.saveToDisk();
+      const state = this.buildStorageState();
+      const snapshot = JSON.stringify(state);
+      if (snapshot !== this.lastSavedSnapshot) {
+        await saveAccounts(state);
+        this.lastSavedSnapshot = snapshot;
+      }
     } catch {
       // best-effort persistence; avoid unhandled rejection from timer-driven saves
     } finally {
