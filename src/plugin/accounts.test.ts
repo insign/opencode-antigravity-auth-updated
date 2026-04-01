@@ -1665,7 +1665,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { claude: { remainingFraction: 0.05, modelCount: 1 } });
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0.05, modelCount: 1 } });
 
       const account = manager.getCurrentOrNextForFamily("claude", null, "sticky", "antigravity", false, 90);
       expect(account?.parts.refreshToken).toBe("r2");
@@ -1681,7 +1681,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { claude: { remainingFraction: 0.15, modelCount: 1 } });
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0.15, modelCount: 1 } });
 
       const account = manager.getCurrentOrNextForFamily("claude", null, "sticky", "antigravity", false, 90);
       expect(account?.parts.refreshToken).toBe("r1");
@@ -1697,7 +1697,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { claude: { remainingFraction: 0.01, modelCount: 1 } });
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0.01, modelCount: 1 } });
 
       const account = manager.getCurrentOrNextForFamily("claude", null, "sticky", "antigravity", false, 100);
       expect(account?.parts.refreshToken).toBe("r1");
@@ -1714,8 +1714,8 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { claude: { remainingFraction: 0.05, modelCount: 1 } });
-      manager.updateQuotaCache(1, { claude: { remainingFraction: 0.08, modelCount: 1 } });
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0.05, modelCount: 1 } });
+      manager.updateQuotaCache("r2", { claude: { remainingFraction: 0.08, modelCount: 1 } });
 
       const account = manager.getCurrentOrNextForFamily("claude", null, "sticky", "antigravity", false, 90);
       expect(account).toBeNull();
@@ -1732,7 +1732,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { claude: { remainingFraction: 0.05, modelCount: 1 } });
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0.05, modelCount: 1 } });
 
       const account = manager.getCurrentOrNextForFamily("claude", null, "round-robin", "antigravity", false, 90);
       expect(account?.parts.refreshToken).toBe("r2");
@@ -1764,7 +1764,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { claude: { remainingFraction: 0, modelCount: 1 } });
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0, modelCount: 1 } });
 
       const account = manager.getCurrentOrNextForFamily("claude", null, "sticky", "antigravity", false, 90);
       expect(account?.parts.refreshToken).toBe("r2");
@@ -1783,7 +1783,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { claude: { remainingFraction: 0.05, modelCount: 1 } });
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0.05, modelCount: 1 } });
 
       vi.setSystemTime(new Date(11 * 60 * 1000));
 
@@ -1823,7 +1823,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { claude: { remainingFraction: 0.15, modelCount: 1 } });
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0.15, modelCount: 1 } });
 
       const waitMs = manager.getMinWaitTimeForSoftQuota("claude", 90, 10 * 60 * 1000);
       expect(waitMs).toBe(0);
@@ -1839,7 +1839,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { claude: { remainingFraction: 0.05, modelCount: 1 } });
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0.05, modelCount: 1 } });
 
       const waitMs = manager.getMinWaitTimeForSoftQuota("claude", 90, 10 * 60 * 1000);
       expect(waitMs).toBeNull();
@@ -1858,7 +1858,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { 
+      manager.updateQuotaCache("r1", { 
         claude: { 
           remainingFraction: 0.05, 
           resetTime: "2026-01-28T15:00:00Z",
@@ -1885,7 +1885,7 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { 
+      manager.updateQuotaCache("r1", { 
         claude: { 
           remainingFraction: 0.05, 
           resetTime: "2026-01-28T15:00:00Z",
@@ -1913,10 +1913,10 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      manager.updateQuotaCache(0, { 
+      manager.updateQuotaCache("r1", { 
         claude: { remainingFraction: 0.05, resetTime: "2026-01-28T15:00:00Z", modelCount: 1 } 
       });
-      manager.updateQuotaCache(1, { 
+      manager.updateQuotaCache("r2", { 
         claude: { remainingFraction: 0.08, resetTime: "2026-01-28T12:00:00Z", modelCount: 1 } 
       });
 
@@ -1948,6 +1948,59 @@ describe("resolveQuotaGroup", () => {
   it("model takes precedence over family", () => {
     // Even if family says claude, model determines the quota group
     expect(resolveQuotaGroup("gemini", "gemini-2.5-flash")).toBe("gemini-flash");
-    expect(resolveQuotaGroup("gemini", "gemini-3-pro")).toBe("gemini-pro");
+      expect(resolveQuotaGroup("gemini", "gemini-3-pro")).toBe("gemini-pro");
+    });
   });
-});
+
+  describe("shouldRefreshAllQuotas", () => {
+    it("returns true when 75% or more accounts are rate-limited", () => {
+      const stored: AccountStorageV4 = {
+        version: 4,
+        accounts: [
+          { refreshToken: "r1", projectId: "p1", addedAt: 1, lastUsed: 0, rateLimitResetTimes: { claude: Date.now() + 100000 } },
+          { refreshToken: "r2", projectId: "p2", addedAt: 2, lastUsed: 0, rateLimitResetTimes: { claude: Date.now() + 100000 } },
+          { refreshToken: "r3", projectId: "p3", addedAt: 3, lastUsed: 0, rateLimitResetTimes: { claude: Date.now() + 100000 } },
+          { refreshToken: "r4", projectId: "p4", addedAt: 4, lastUsed: 0 },
+        ],
+        activeIndex: 0,
+      };
+
+      const manager = new AccountManager(undefined, stored);
+      expect(manager.shouldRefreshAllQuotas()).toBe(true); // 3/4 = 75%
+    });
+
+    it("returns true when accounts are over soft quota", () => {
+      const stored: AccountStorageV4 = {
+        version: 4,
+        accounts: [
+          { refreshToken: "r1", projectId: "p1", addedAt: 1, lastUsed: 0 },
+          { refreshToken: "r2", projectId: "p2", addedAt: 2, lastUsed: 0 },
+          { refreshToken: "r3", projectId: "p3", addedAt: 3, lastUsed: 0 },
+          { refreshToken: "r4", projectId: "p4", addedAt: 4, lastUsed: 0 },
+        ],
+        activeIndex: 0,
+      };
+
+      const manager = new AccountManager(undefined, stored);
+      manager.updateQuotaCache("r1", { claude: { remainingFraction: 0.05, modelCount: 1 } });
+      manager.updateQuotaCache("r2", { claude: { remainingFraction: 0.05, modelCount: 1 } });
+      manager.updateQuotaCache("r3", { claude: { remainingFraction: 0.05, modelCount: 1 } });
+
+      expect(manager.shouldRefreshAllQuotas("claude", 90)).toBe(true);
+    });
+
+    it("returns false when pool is healthy", () => {
+      const stored: AccountStorageV4 = {
+        version: 4,
+        accounts: [
+          { refreshToken: "r1", projectId: "p1", addedAt: 1, lastUsed: 0 },
+          { refreshToken: "r2", projectId: "p2", addedAt: 2, lastUsed: 0 },
+        ],
+        activeIndex: 0,
+      };
+
+      const manager = new AccountManager(undefined, stored);
+      expect(manager.shouldRefreshAllQuotas()).toBe(false);
+    });
+  });
+

@@ -44,7 +44,7 @@ import { AccountManager, type ModelFamily, parseRateLimitReason, calculateBackof
 import { createAutoUpdateCheckerHook } from "./hooks/auto-update-checker";
 import { loadConfig, initRuntimeConfig, type AntigravityConfig } from "./plugin/config";
 import { createSessionRecoveryHook, getRecoverySuccessToast } from "./plugin/recovery";
-import { checkAccountsQuota } from "./plugin/quota";
+import { checkAccountsQuota, triggerAsyncQuotaRefreshForAll } from "./plugin/quota";
 import { initDiskSignatureCache } from "./plugin/cache";
 import { createProactiveRefreshQueue, type ProactiveRefreshQueue } from "./plugin/refresh-queue";
 import { initLogger, createLogger } from "./plugin/logger";
@@ -80,6 +80,71 @@ let childSessionParentID: string | undefined = undefined;
 
 const log = createLogger("plugin");
 
+/**
+ * [Node.js Compatibility Polyfill]
+ * AbortSignal.any() was added in Node 20.17.0.
+ * This project supports Node >= 20.0.0, so we provide a polyfill
+ * for older 20.x releases.
+ */
+if (typeof (AbortSignal as any).any !== "function") {
+  (AbortSignal as any).any = function (signals: AbortSignal[]): AbortSignal {
+    const controller = new AbortController();
+    const onAbort = () => {
+      const firstAborted = signals.find(s => s.aborted);
+      controller.abort(firstAborted?.reason);
+      cleanup();
+    };
+    const cleanup = () => {
+      for (const signal of signals) {
+        signal.removeEventListener("abort", onAbort);
+      }
+    };
+    for (const signal of signals) {
+      if (signal.aborted) {
+        controller.abort(signal.reason);
+        return controller.signal;
+      }
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+    controller.signal.addEventListener("abort", cleanup, { once: true });
+    return controller.signal;
+  };
+}
+
+/**
+ * Simple combinator for multiple AbortSignals for environments where AbortSignal.any is missing.
+ */
+function mergeAbortSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
+  const activeSignals = signals.filter((s): s is AbortSignal => s !== undefined);
+  if (activeSignals.length === 0) return new AbortController().signal;
+  if (activeSignals.length === 1) return activeSignals[0] as AbortSignal;
+  
+  if (typeof (AbortSignal as any).any === 'function') {
+    return (AbortSignal as any).any(activeSignals);
+  }
+
+  const controller = new AbortController();
+  const onAbort = () => {
+    const firstAborted = activeSignals.find(s => s.aborted);
+    controller.abort(firstAborted?.reason);
+    cleanup();
+  };
+  const cleanup = () => {
+    for (const signal of activeSignals) {
+      signal.removeEventListener("abort", onAbort);
+    }
+  };
+  for (const signal of activeSignals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      return controller.signal;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  }
+  controller.signal.addEventListener("abort", cleanup, { once: true });
+  return controller.signal;
+}
+
 // Module-level toast debounce to persist across requests (fixes toast spam)
 const rateLimitToastCooldowns = new Map<string, number>();
 const RATE_LIMIT_TOAST_COOLDOWN_MS = 5000;
@@ -90,7 +155,7 @@ let softQuotaToastShown = false;
 let rateLimitToastShown = false;
 
 // Module-level reference to AccountManager for access from auth.login
-let activeAccountManager: import("./plugin/accounts").AccountManager | null = null;
+let activeAccountManager: AccountManager | null = null;
 
 function cleanupToastCooldowns(): void {
   if (rateLimitToastCooldowns.size > MAX_TOAST_COOLDOWN_ENTRIES) {
@@ -157,9 +222,8 @@ async function triggerAsyncQuotaRefreshForAccount(
     
     const results = await checkAccountsQuota([singleAccount], client, providerId);
     
-    if (results[0]?.status === "ok" && results[0]?.quota?.groups) {
-      accountManager.updateQuotaCache(accountIndex, results[0].quota.groups);
-      accountManager.requestSaveToDisk();
+    if (results[0]?.status === "ok" && results[0]?.quota?.groups && results[0]?.refreshToken) {
+      accountManager.updateQuotaCache(results[0].refreshToken, results[0].quota.groups);
     }
   } catch (err) {
     log.debug(`quota-refresh-failed email=${accountKey}`, { error: String(err) });
@@ -1994,6 +2058,8 @@ export const createAntigravityPlugin = (providerId: string) => async (
                 continue;
               }
 
+              let effectiveTimeoutMs = (config.request_timeout_seconds ?? 600) * 1000;
+
               try {
                 const prepared = prepareAntigravityRequest(
                   input,
@@ -2060,7 +2126,37 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   tokenConsumed = getTokenTracker().consume(account.index);
                 }
 
-                const response = await fetch(prepared.request, requestInit);
+                // Check if we should proactively refresh all quotas (only on first endpoint attempt)
+                if (i === 0 && accountManager.shouldRefreshAllQuotas(family, config.soft_quota_threshold_percent, softQuotaCacheTtlMs, model)) {
+                  pushDebug("proactive-quota-refresh: pool is mostly blocked, refreshing all");
+                  void triggerAsyncQuotaRefreshForAll(accountManager, client, providerId);
+                }
+
+                // Create a combined signal for timeout and user abort
+                const timeoutMs = (config.request_timeout_seconds ?? 600) * 1000;
+                // For streaming, we allow up to 3x the timeout (max 30 mins) to account for long generations
+                // while still catching truly "stuck" connections.
+                effectiveTimeoutMs = prepared.streaming 
+                  ? Math.min(timeoutMs * 3, 1800000) 
+                  : timeoutMs;
+                  
+                // Safely create timeout signal with fallback for older Node.js versions
+                let timeoutSignal: AbortSignal;
+                if (typeof AbortSignal.timeout === 'function') {
+                  timeoutSignal = AbortSignal.timeout(effectiveTimeoutMs);
+                } else {
+                  const controller = new AbortController();
+                  setTimeout(() => controller.abort(new Error('Timeout')), effectiveTimeoutMs);
+                  timeoutSignal = controller.signal;
+                }
+
+                // Safely create combined signal with polyfill/fallback
+                const combinedSignal = mergeAbortSignals(abortSignal, timeoutSignal);
+
+                const response = await fetch(prepared.request, {
+                  ...requestInit,
+                  signal: combinedSignal
+                });
                 pushDebug(`status=${response.status} ${response.statusText}`);
 
 
@@ -2440,6 +2536,38 @@ export const createAntigravityPlugin = (providerId: string) => async (
                 if (tokenConsumed) {
                   getTokenTracker().refund(account.index);
                   tokenConsumed = false;
+                }
+
+                // [CRITICAL] Check for user interruption FIRST before any error classification
+                if (abortSignal?.aborted) {
+                  // User pressed ESC - stop everything immediately to prevent spin loop and memory leak
+                  pushDebug("user-interrupted: stopping request loop");
+                  throw error;
+                }
+
+                // Check for timeout errors
+                if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+                  // This was a request timeout (stuck account)
+                  const actualTimeoutSec = Math.round(effectiveTimeoutMs / 1000);
+                  pushDebug(`request-timeout: account ${account.index} stuck for ${actualTimeoutSec}s, rotating`);
+                  getHealthTracker().recordFailure(account.index);
+                  accountManager.markAccountCoolingDown(account, 60000, "network-error");
+                  
+                  // Persist cooldown immediately so it survives restarts
+                  try {
+                    await accountManager.saveToDisk();
+                  } catch (saveError) {
+                    log.error("failed-to-persist-timeout-cooldown", { error: String(saveError) });
+                  }
+                  
+                  await showToast(
+                    `⏳ Account stuck (${actualTimeoutSec}s). Rotating to next available...`,
+                    "warning"
+                  );
+                  
+                  shouldSwitchAccount = true;
+                  lastError = error;
+                  break;
                 }
 
                 // Handle recoverable thinking errors - retry with forced recovery
