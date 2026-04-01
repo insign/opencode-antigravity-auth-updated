@@ -12,6 +12,7 @@ export interface AccountInfo {
   status?: AccountStatus;
   isCurrentAccount?: boolean;
   enabled?: boolean;
+  verificationRequiredType?: string;
 }
 
 export type AuthMenuAction =
@@ -21,6 +22,7 @@ export type AuthMenuAction =
   | { type: 'check' }
   | { type: 'verify' }
   | { type: 'verify-all' }
+  | { type: 'gemini-cli-login' }
   | { type: 'configure-models' }
   | { type: 'cancel' };
 
@@ -41,12 +43,19 @@ function formatDate(timestamp: number | undefined): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-function getStatusBadge(status: AccountStatus | undefined): string {
+function getStatusBadge(status: AccountStatus | undefined, verificationRequiredType?: string): string {
   switch (status) {
     case 'active': return `${ANSI.green}[active]${ANSI.reset}`;
     case 'rate-limited': return `${ANSI.yellow}[rate-limited]${ANSI.reset}`;
     case 'expired': return `${ANSI.red}[expired]${ANSI.reset}`;
-    case 'verification-required': return `${ANSI.red}[needs verification]${ANSI.reset}`;
+    case 'verification-required': {
+      switch (verificationRequiredType) {
+        case 'gemini-cli': return `${ANSI.red}[needs Gemini CLI login]${ANSI.reset}`;
+        case 'api-enable': return `${ANSI.red}[needs API enable]${ANSI.reset}`;
+        case 'google-account': return `${ANSI.red}[needs Google verification]${ANSI.reset}`;
+        default: return `${ANSI.red}[needs verification]${ANSI.reset}`;
+      }
+    }
     default: return '';
   }
 }
@@ -58,6 +67,7 @@ export async function showAuthMenu(accounts: AccountInfo[]): Promise<AuthMenuAct
     { label: 'Check quotas', value: { type: 'check' }, color: 'cyan' },
     { label: 'Verify one account', value: { type: 'verify' }, color: 'cyan' },
     { label: 'Verify all accounts', value: { type: 'verify-all' }, color: 'cyan' },
+    { label: 'Gemini CLI Login', value: { type: 'gemini-cli-login' }, color: 'cyan' },
     { label: 'Configure models in opencode.json', value: { type: 'configure-models' }, color: 'cyan' },
 
     { label: '', value: { type: 'cancel' }, separator: true },
@@ -65,7 +75,7 @@ export async function showAuthMenu(accounts: AccountInfo[]): Promise<AuthMenuAct
     { label: 'Accounts', value: { type: 'cancel' }, kind: 'heading' },
 
     ...accounts.map(account => {
-      const statusBadge = getStatusBadge(account.status);
+      const statusBadge = getStatusBadge(account.status, account.verificationRequiredType);
       const currentBadge = account.isCurrentAccount ? ` ${ANSI.cyan}[current]${ANSI.reset}` : '';
       const disabledBadge = account.enabled === false ? ` ${ANSI.red}[disabled]${ANSI.reset}` : '';
       const baseLabel = account.email || `Account ${account.index + 1}`;
@@ -105,7 +115,7 @@ export async function showAuthMenu(accounts: AccountInfo[]): Promise<AuthMenuAct
 
 export async function showAccountDetails(account: AccountInfo): Promise<AccountAction> {
   const label = account.email || `Account ${account.index + 1}`;
-  const badge = getStatusBadge(account.status);
+  const badge = getStatusBadge(account.status, account.verificationRequiredType);
   const disabledBadge = account.enabled === false ? ` ${ANSI.red}[disabled]${ANSI.reset}` : '';
   const header = `${label}${badge ? ' ' + badge : ''}${disabledBadge}`;
   const subtitleParts = [

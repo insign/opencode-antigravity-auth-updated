@@ -30,7 +30,7 @@ export async function promptAddAnotherAccount(currentCount: number): Promise<boo
   }
 }
 
-export type LoginMode = "add" | "fresh" | "manage" | "check" | "verify" | "verify-all" | "cancel";
+export type LoginMode = "add" | "fresh" | "manage" | "check" | "verify" | "verify-all" | "gemini-cli-login" | "cancel";
 
 export interface ExistingAccountInfo {
   email?: string;
@@ -40,6 +40,7 @@ export interface ExistingAccountInfo {
   status?: AccountStatus;
   isCurrentAccount?: boolean;
   enabled?: boolean;
+  verificationRequiredType?: string;
 }
 
 export interface LoginMenuResult {
@@ -50,6 +51,7 @@ export interface LoginMenuResult {
   verifyAccountIndex?: number;
   verifyAll?: boolean;
   deleteAll?: boolean;
+  geminiCliAccountIndex?: number;
 }
 
 async function promptLoginModeFallback(existingAccounts: ExistingAccountInfo[]): Promise<LoginMenuResult> {
@@ -63,7 +65,7 @@ async function promptLoginModeFallback(existingAccounts: ExistingAccountInfo[]):
     console.log("");
 
     while (true) {
-      const answer = await rl.question("(a)dd new, (f)resh start, (c)heck quotas, (v)erify account, (va) verify all? [a/f/c/v/va]: ");
+      const answer = await rl.question("(a)dd new, (f)resh start, (c)heck quotas, (v)erify account, (va) verify all, (g)emini cli login? [a/f/c/v/va/g]: ");
       const normalized = answer.trim().toLowerCase();
 
       if (normalized === "a" || normalized === "add") {
@@ -81,8 +83,11 @@ async function promptLoginModeFallback(existingAccounts: ExistingAccountInfo[]):
       if (normalized === "va" || normalized === "verify-all" || normalized === "all") {
         return { mode: "verify-all", verifyAll: true };
       }
+      if (normalized === "g" || normalized === "gemini" || normalized === "gemini-cli") {
+        return { mode: "gemini-cli-login" };
+      }
 
-      console.log("Please enter 'a', 'f', 'c', 'v', or 'va'.");
+      console.log("Please enter 'a', 'f', 'c', 'v', 'va', or 'g'.");
     }
   } finally {
     rl.close();
@@ -102,6 +107,7 @@ export async function promptLoginMode(existingAccounts: ExistingAccountInfo[]): 
     status: acc.status,
     isCurrentAccount: acc.isCurrentAccount,
     enabled: acc.enabled,
+    verificationRequiredType: acc.verificationRequiredType,
   }));
 
   console.log("");
@@ -121,6 +127,9 @@ export async function promptLoginMode(existingAccounts: ExistingAccountInfo[]): 
 
       case "verify-all":
         return { mode: "verify-all", verifyAll: true };
+
+      case "gemini-cli-login":
+        return { mode: "gemini-cli-login" };
 
       case "select-account": {
         const accountAction = await showAccountDetails(action.account);
