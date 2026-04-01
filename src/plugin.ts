@@ -1706,8 +1706,6 @@ export const createAntigravityPlugin = (providerId: string) => async (
               accountManager.markToastShown(account.index);
             }
 
-            accountManager.requestSaveToDisk();
-
             let authRecord = accountManager.toAuthDetails(account);
 
             if (accessTokenExpired(authRecord)) {
@@ -2296,7 +2294,8 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   account.consecutiveFailures = 0;
                   getHealthTracker().recordSuccess(account.index);
                   accountManager.markAccountUsed(account.index);
-                  
+                  accountManager.requestSaveToDisk();
+
                   void triggerAsyncQuotaRefreshForAccount(
                     accountManager,
                     account.index,
