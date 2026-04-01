@@ -431,7 +431,7 @@ v1.2.7+ uses explicit `antigravity-` prefix:
 
 | Old Name | New Name |
 |----------|----------|
-| `gemini-3-pro-low` | `antigravity-gemini-3-pro` |
+| `gemini-3.1-pro-low` | `antigravity-gemini-3.1-pro` |
 | `claude-sonnet-4-6` | `antigravity-claude-sonnet-4-6` |
 
 Use the `antigravity-` prefixed model names shown above.

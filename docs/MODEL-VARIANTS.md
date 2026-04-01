@@ -50,30 +50,14 @@ The plugin accepts different variant formats depending on the model family:
 
 Gemini 3 models use string-based thinking levels. Available levels differ by model:
 
-| Level | Flash | Pro | Description |
-|-------|-------|-----|-------------|
+| Level | Flash | Pro (3.1) | Description |
+|-------|-------|-------------|-------------|
 | `minimal` | ✅ | ❌ | Minimal thinking, lowest latency |
 | `low` | ✅ | ✅ | Light thinking |
 | `medium` | ✅ | ❌ | Balanced thinking |
 | `high` | ✅ | ✅ | Maximum thinking (default) |
 
 > **Note:** The API rejects invalid levels (e.g., `"minimal"` on Pro). Configure variants accordingly.
-
-### Gemini 3 Pro Example
-
-```json
-{
-  "antigravity-gemini-3-pro": {
-    "name": "Gemini 3 Pro (Antigravity)",
-    "limit": { "context": 1048576, "output": 65535 },
-    "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
-    "variants": {
-      "low": { "thinkingLevel": "low" },
-      "high": { "thinkingLevel": "high" }
-    }
-  }
-}
-```
 
 ### Gemini 3 Flash Example
 
@@ -99,22 +83,34 @@ Gemini 3 models use string-based thinking levels. Available levels differ by mod
 
 Claude models use token-based thinking budgets:
 
-| Variant | Budget | Description |
-|---------|--------|-------------|
-| `low` | 8192 | Light thinking |
-| `max` | 32768 | Maximum thinking |
+| Model | Variants | Budgets |
+|-------|----------|---------|
+| `antigravity-claude-opus-4-6-thinking` | `low`, `medium`, `high`, `max` | 8192, 16384, 32768, 65536 |
+| `antigravity-claude-sonnet-4-6-thinking` | `low`, `medium`, `high` | 8192, 16384, 32768 |
 
 ### Claude Example
 
 ```json
 {
+  "antigravity-claude-sonnet-4-6-thinking": {
+    "name": "Claude Sonnet 4.6 Thinking (Antigravity)",
+    "limit": { "context": 200000, "output": 64000 },
+    "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
+    "variants": {
+      "low": { "thinkingConfig": { "thinkingBudget": 8192 } },
+      "medium": { "thinkingConfig": { "thinkingBudget": 16384 } },
+      "high": { "thinkingConfig": { "thinkingBudget": 32768 } }
+    }
+  },
   "antigravity-claude-opus-4-6-thinking": {
     "name": "Claude Opus 4.6 Thinking (Antigravity)",
     "limit": { "context": 200000, "output": 64000 },
     "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
     "variants": {
       "low": { "thinkingConfig": { "thinkingBudget": 8192 } },
-      "max": { "thinkingConfig": { "thinkingBudget": 32768 } }
+      "medium": { "thinkingConfig": { "thinkingBudget": 16384 } },
+      "high": { "thinkingConfig": { "thinkingBudget": 32768 } },
+      "max": { "thinkingConfig": { "thinkingBudget": 65536 } }
     }
   }
 }
@@ -157,9 +153,10 @@ Tier-suffixed model names are still accepted:
 - `antigravity-claude-opus-4-6-thinking-low`
 - `antigravity-claude-opus-4-6-thinking-medium`
 - `antigravity-claude-opus-4-6-thinking-high`
-- `antigravity-gemini-3-pro-low`
-- `antigravity-gemini-3-pro-high`
-- `gemini-3-pro-low`
+- `antigravity-claude-opus-4-6-thinking-max`
+- `antigravity-claude-sonnet-4-6-thinking-low`
+- `antigravity-claude-sonnet-4-6-thinking-medium`
+- `antigravity-claude-sonnet-4-6-thinking-high`
 - `gemini-3-flash-medium`
 
 However, **we recommend using simplified model names with variants** for:

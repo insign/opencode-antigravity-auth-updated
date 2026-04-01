@@ -58,7 +58,7 @@ function runTests(): void {
   let failed = 0;
 
   console.log('Test 1: Model family detection');
-  const geminiFamily = getModelFamily('gemini-3-pro-low');
+  const geminiFamily = getModelFamily('gemini-3.1-pro-low');
   const claudeFamily = getModelFamily('claude-opus-4-6-thinking-medium');
   if (geminiFamily === 'gemini' && claudeFamily === 'claude') {
     console.log('  ✅ PASS: Model families detected correctly');
