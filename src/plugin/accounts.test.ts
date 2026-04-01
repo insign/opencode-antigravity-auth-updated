@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AccountManager, type ModelFamily, type HeaderStyle, parseRateLimitReason, calculateBackoffMs, type RateLimitReason, resolveQuotaGroup } from "./accounts";
+import { saveAccounts } from "./storage";
 import type { AccountStorageV4 } from "./storage";
 import type { OAuthAuthDetails } from "./types";
 
@@ -253,6 +254,40 @@ describe("AccountManager", () => {
     expect(snapshot[0]?.expires).toBeUndefined();
     expect(snapshot[1]?.access).toBe("access-2");
     expect(snapshot[1]?.expires).toBe(123);
+  });
+
+  it("saveToDisk preserves empty rateLimitResetTimes so stale limits can be cleared", async () => {
+    const stored: AccountStorageV4 = {
+      version: 4,
+      accounts: [
+        {
+          refreshToken: "r1",
+          projectId: "p1",
+          addedAt: 1,
+          lastUsed: 0,
+          rateLimitResetTimes: { claude: 123456 },
+        },
+      ],
+      activeIndex: 0,
+    };
+
+    const manager = new AccountManager(undefined, stored);
+    const account = manager.getAccounts()[0];
+    if (!account) throw new Error("Account not found");
+
+    account.rateLimitResetTimes = {};
+    await manager.saveToDisk();
+
+    expect(vi.mocked(saveAccounts)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accounts: [
+          expect.objectContaining({
+            refreshToken: "r1",
+            rateLimitResetTimes: {},
+          }),
+        ],
+      }),
+    );
   });
 
   it("debounces toast display for same account", () => {
@@ -1069,6 +1104,8 @@ describe("AccountManager", () => {
   describe("Issue #174: saveToDisk throttling", () => {
     it("requestSaveToDisk coalesces multiple calls into one write", async () => {
       vi.useFakeTimers();
+      const saveMock = vi.mocked(saveAccounts);
+      saveMock.mockClear();
 
       const stored: AccountStorageV4 = {
         version: 4,
@@ -1079,23 +1116,22 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      const saveSpy = vi.spyOn(manager, "saveToDisk").mockResolvedValue();
 
       manager.requestSaveToDisk();
       manager.requestSaveToDisk();
       manager.requestSaveToDisk();
 
-      expect(saveSpy).not.toHaveBeenCalled();
+      expect(saveMock).not.toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(1500);
+      await vi.advanceTimersByTimeAsync(5500);
 
-      expect(saveSpy).toHaveBeenCalledTimes(1);
-
-      saveSpy.mockRestore();
+      expect(saveMock).toHaveBeenCalledTimes(1);
     });
 
     it("flushSaveToDisk waits for pending save to complete", async () => {
       vi.useFakeTimers();
+      const saveMock = vi.mocked(saveAccounts);
+      saveMock.mockClear();
 
       const stored: AccountStorageV4 = {
         version: 4,
@@ -1106,22 +1142,21 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      const saveSpy = vi.spyOn(manager, "saveToDisk").mockResolvedValue();
 
       manager.requestSaveToDisk();
 
       const flushPromise = manager.flushSaveToDisk();
 
-      await vi.advanceTimersByTimeAsync(1500);
+      await vi.advanceTimersByTimeAsync(5500);
       await flushPromise;
 
-      expect(saveSpy).toHaveBeenCalledTimes(1);
-
-      saveSpy.mockRestore();
+      expect(saveMock).toHaveBeenCalledTimes(1);
     });
 
     it("does not save again if no new requestSaveToDisk after flush", async () => {
       vi.useFakeTimers();
+      const saveMock = vi.mocked(saveAccounts);
+      saveMock.mockClear();
 
       const stored: AccountStorageV4 = {
         version: 4,
@@ -1132,18 +1167,68 @@ describe("AccountManager", () => {
       };
 
       const manager = new AccountManager(undefined, stored);
-      const saveSpy = vi.spyOn(manager, "saveToDisk").mockResolvedValue();
 
       manager.requestSaveToDisk();
-      await vi.advanceTimersByTimeAsync(1500);
+      await vi.advanceTimersByTimeAsync(5500);
 
-      expect(saveSpy).toHaveBeenCalledTimes(1);
+      expect(saveMock).toHaveBeenCalledTimes(1);
 
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(6000);
 
-      expect(saveSpy).toHaveBeenCalledTimes(1);
+      expect(saveMock).toHaveBeenCalledTimes(1);
+    });
 
-      saveSpy.mockRestore();
+    it("writes when account state changes between debounced saves", async () => {
+      vi.useFakeTimers();
+      const saveMock = vi.mocked(saveAccounts);
+      saveMock.mockClear();
+
+      const stored: AccountStorageV4 = {
+        version: 4,
+        accounts: [
+          { refreshToken: "r1", projectId: "p1", addedAt: 1, lastUsed: 0 },
+        ],
+        activeIndex: 0,
+      };
+
+      const manager = new AccountManager(undefined, stored);
+
+      // First save
+      manager.requestSaveToDisk();
+      await vi.advanceTimersByTimeAsync(5500);
+      expect(saveMock).toHaveBeenCalledTimes(1);
+
+      // Mutate state, then request save — should write again
+      manager.markAccountUsed(0);
+      manager.requestSaveToDisk();
+      await vi.advanceTimersByTimeAsync(5500);
+      expect(saveMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("skips write when account state has not changed", async () => {
+      vi.useFakeTimers();
+      const saveMock = vi.mocked(saveAccounts);
+      saveMock.mockClear();
+
+      const stored: AccountStorageV4 = {
+        version: 4,
+        accounts: [
+          { refreshToken: "r1", projectId: "p1", addedAt: 1, lastUsed: 0 },
+        ],
+        activeIndex: 0,
+      };
+
+      const manager = new AccountManager(undefined, stored);
+
+      // First save — should write
+      manager.requestSaveToDisk();
+      await vi.advanceTimersByTimeAsync(5500);
+      expect(saveMock).toHaveBeenCalledTimes(1);
+
+      // Second save with no state change — should skip
+      manager.requestSaveToDisk();
+      await vi.advanceTimersByTimeAsync(5500);
+      expect(saveMock).toHaveBeenCalledTimes(1);
     });
   });
 

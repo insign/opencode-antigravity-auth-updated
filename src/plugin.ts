@@ -39,7 +39,7 @@ import {
 import { EmptyResponseError } from "./plugin/errors";
 import { AntigravityTokenRefreshError, refreshAccessToken } from "./plugin/token";
 import { startOAuthListener, type OAuthListener } from "./plugin/server";
-import { clearAccounts, loadAccounts, saveAccounts, saveAccountsReplace } from "./plugin/storage";
+import { clearAccounts, getStoragePath, loadAccounts, saveAccounts, saveAccountsReplace } from "./plugin/storage";
 import { AccountManager, type ModelFamily, parseRateLimitReason, calculateBackoffMs, computeSoftQuotaCacheTtlMs } from "./plugin/accounts";
 import { createAutoUpdateCheckerHook } from "./hooks/auto-update-checker";
 import { loadConfig, initRuntimeConfig, type AntigravityConfig } from "./plugin/config";
@@ -883,14 +883,17 @@ async function persistAccountPool(
     }
 
     // Update existing account (this handles both email match and token match cases)
-    // When email matches but token differs, this effectively replaces the old token
+    // When email matches but token differs, this effectively replaces the old token.
+    // Existing (disk) projectId/managedProjectId take priority over incoming
+    // (OAuth-fetched) values to prevent auto-detected fallbacks from overwriting
+    // manually configured project IDs.
     const oldToken = existing.refreshToken;
     accounts[existingIndex] = {
       ...existing,
       email: result.email ?? existing.email,
       refreshToken: parts.refreshToken,
-      projectId: parts.projectId ?? existing.projectId,
-      managedProjectId: parts.managedProjectId ?? existing.managedProjectId,
+      projectId: existing.projectId ?? parts.projectId,
+      managedProjectId: existing.managedProjectId ?? parts.managedProjectId,
       lastUsed: now,
     };
     
@@ -1412,23 +1415,27 @@ export const createAntigravityPlugin = (providerId: string) => async (
         return "Error: Not authenticated with Antigravity. Please run `opencode auth login` to authenticate.";
       }
 
-      // Get access token and project ID
-      const parts = parseRefreshParts(auth.refresh);
-      const projectId = parts.managedProjectId || parts.projectId || "unknown";
+      let projectContext: ProjectContextResult
+      try {
+        projectContext = await ensureProjectContext(auth)
+      } catch (error) {
+        return `Error: Failed to resolve project context: ${error instanceof Error ? error.message : String(error)}`
+      }
 
-      // Ensure we have a valid access token
-      let accessToken = auth.access;
-      if (!accessToken || accessTokenExpired(auth)) {
+      const projectId = projectContext.effectiveProjectId
+      let accessToken = projectContext.auth.access || auth.access
+
+      if (!accessToken || accessTokenExpired(projectContext.auth)) {
         try {
-          const refreshed = await refreshAccessToken(auth, client, providerId);
-          accessToken = refreshed?.access;
+          const refreshed = await refreshAccessToken(projectContext.auth, client, providerId)
+          accessToken = refreshed?.access
         } catch (error) {
-          return `Error: Failed to refresh access token: ${error instanceof Error ? error.message : String(error)}`;
+          return `Error: Failed to refresh access token: ${error instanceof Error ? error.message : String(error)}`
         }
       }
 
       if (!accessToken) {
-        return "Error: No valid access token available. Please run `opencode auth login` to re-authenticate.";
+        return "Error: No valid access token available. Please run `opencode auth login` to re-authenticate."
       }
 
       return executeSearch(
@@ -1474,7 +1481,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
       
       // Note: AccountManager now ensures the current auth is always included in accounts
 
-      const accountManager = await AccountManager.loadFromDisk(auth);
+      let accountManager = await AccountManager.loadFromDisk(auth);
       activeAccountManager = accountManager;
       if (accountManager.getAccountCount() > 0) {
         accountManager.requestSaveToDisk();
@@ -1525,9 +1532,8 @@ export const createAntigravityPlugin = (providerId: string) => async (
             return fetch(input, init);
           }
 
-          if (accountManager.getAccountCount() === 0) {
-            throw new Error("No Antigravity accounts configured. Run `opencode auth login`.");
-          }
+          accountManager = await AccountManager.loadFromDisk(latestAuth);
+          activeAccountManager = accountManager;
 
           const urlString = toUrlString(input);
           const family = getModelFamilyFromUrl(urlString);
@@ -1538,6 +1544,26 @@ export const createAntigravityPlugin = (providerId: string) => async (
             debugLines.push(line);
           };
           pushDebug(`request=${urlString}`);
+          let reloadedProviderState = false;
+          const reloadProviderState = async (reason: string): Promise<boolean> => {
+            if (reloadedProviderState) {
+              return false;
+            }
+            const reloadedAuth = await getAuth();
+            if (!isOAuthAuth(reloadedAuth)) {
+              return false;
+            }
+            reloadedProviderState = true;
+            accountManager = await AccountManager.loadFromDisk(reloadedAuth);
+            activeAccountManager = accountManager;
+            rateLimitStateByAccountQuota.clear();
+            emptyResponseAttempts.clear();
+            accountFailureState.clear();
+            rateLimitToastShown = false;
+            softQuotaToastShown = false;
+            pushDebug(`reload-provider-state reason=${reason} accounts=${accountManager.getAccountCount()}`);
+            return true;
+          };
 
           type FailureContext = {
             response: Response;
@@ -1618,6 +1644,9 @@ export const createAntigravityPlugin = (providerId: string) => async (
             } = routingDecision;
             
             if (accountCount === 0) {
+              if (await reloadProviderState("no-accounts")) {
+                continue;
+              }
               throw new Error("No Antigravity accounts available. Run `opencode auth login`.");
             }
 
@@ -1710,6 +1739,9 @@ export const createAntigravityPlugin = (providerId: string) => async (
               // 0 means disabled (wait indefinitely)
               const maxWaitMs = (config.max_rate_limit_wait_seconds ?? 300) * 1000;
               if (maxWaitMs > 0 && waitMs > maxWaitMs) {
+                if (await reloadProviderState(`all-rate-limited:${family}`)) {
+                  continue;
+                }
                 const waitTimeFormatted = formatWaitTime(waitMs);
                 await showToast(
                   `Rate limited for ${waitTimeFormatted}. Try again later or add another account.`,
@@ -1762,8 +1794,6 @@ export const createAntigravityPlugin = (providerId: string) => async (
               );
               accountManager.markToastShown(account.index);
             }
-
-            accountManager.requestSaveToDisk();
 
             let authRecord = accountManager.toAuthDetails(account);
 
@@ -1891,6 +1921,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
               const warmupUrl = toWarmupStreamUrl(prepared.request);
               const warmupHeaders = new Headers(prepared.init.headers ?? {});
               warmupHeaders.set("accept", "text/event-stream");
+              warmupHeaders.delete("x-goog-api-key");
 
               const warmupInit: RequestInit = {
                 ...prepared.init,
@@ -2045,6 +2076,13 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   },
                 );
 
+                const requestHeaders = new Headers(prepared.init.headers ?? {});
+                requestHeaders.delete("x-goog-api-key");
+                const requestInit: RequestInit = {
+                  ...prepared.init,
+                  headers: requestHeaders,
+                };
+
                 const originalUrl = toUrlString(input);
                 const resolvedUrl = toUrlString(prepared.request);
                 pushDebug(`endpoint=${currentEndpoint}`);
@@ -2052,9 +2090,9 @@ export const createAntigravityPlugin = (providerId: string) => async (
                 const debugContext = startAntigravityDebugRequest({
                   originalUrl,
                   resolvedUrl,
-                  method: prepared.init.method,
-                  headers: prepared.init.headers,
-                  body: prepared.init.body,
+                  method: requestInit.method,
+                  headers: requestInit.headers,
+                  body: requestInit.body,
                   streaming: prepared.streaming,
                   projectId: projectContext.effectiveProjectId,
                 });
@@ -2116,7 +2154,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                 const combinedSignal = mergeAbortSignals(abortSignal, timeoutSignal);
 
                 const response = await fetch(prepared.request, {
-                  ...prepared.init,
+                  ...requestInit,
                   signal: combinedSignal
                 });
                 pushDebug(`status=${response.status} ${response.statusText}`);
@@ -2385,7 +2423,8 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   account.consecutiveFailures = 0;
                   getHealthTracker().recordSuccess(account.index);
                   accountManager.markAccountUsed(account.index);
-                  
+                  accountManager.requestSaveToDisk();
+
                   void triggerAsyncQuotaRefreshForAccount(
                     accountManager,
                     account.index,
@@ -3243,7 +3282,43 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   const isFirstAccount = accounts.length === 1;
                   await persistAccountPool([result], isFirstAccount && startFresh);
                 }
-              } catch {
+              } catch (error) {
+                const reason = error instanceof Error ? error.message : String(error);
+                const lockPath = `${getStoragePath()}.lock`;
+                const errorCode = (
+                  typeof error === "object" &&
+                  error !== null &&
+                  "code" in error &&
+                  typeof (error as { code?: unknown }).code === "string"
+                )
+                  ? (error as { code: string }).code
+                  : undefined;
+                const isLockError =
+                  errorCode === "ELOCKED" ||
+                  errorCode === "EEXIST" ||
+                  /ELOCKED|EEXIST/i.test(reason);
+                const lockGuidance = isLockError
+                  ? ` Storage lock at ${lockPath} may be held by another process (lock directory). ` +
+                    `Retry after current operation finishes. If the lock persists and ${lockPath} exists as a file, remove that file and retry.`
+                  : "";
+                const accountPersistenceWarning =
+                  `failed to persist account data (${reason}).${lockGuidance}`;
+                console.warn(`[opencode-antigravity-auth] ${accountPersistenceWarning}`);
+                try {
+                  const compactReason = reason.length > 120 ? `${reason.slice(0, 117)}...` : reason;
+                  const toastMessage = isLockError
+                    ? `Authenticated, but account was not saved because storage is locked. Another process may hold a lock directory. Retry in a moment; if ${lockPath} persists as a file, remove the file and retry.`
+                    : `Authenticated, but account was not saved: ${compactReason}`;
+                  await client.tui.showToast({
+                    body: {
+                      message: toastMessage,
+                      variant: "error",
+                    },
+                  });
+                } catch (toastError) {
+                  // Toast display is best-effort; auth succeeded even if notification fails.
+                  console.warn("[opencode-antigravity-auth] Failed to show account persistence toast:", toastError);
+                }
               }
 
               if (refreshAccountIndex !== undefined) {
@@ -3258,7 +3333,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
               let currentAccountCount = accounts.length;
               try {
                 const currentStorage = await loadAccounts();
-                if (currentStorage) {
+                if (currentStorage && currentStorage.accounts.length > 0) {
                   currentAccountCount = currentStorage.accounts.length;
                 }
               } catch {
@@ -3284,10 +3359,11 @@ export const createAntigravityPlugin = (providerId: string) => async (
             let actualAccountCount = accounts.length;
             try {
               const finalStorage = await loadAccounts();
-              if (finalStorage) {
+              if (finalStorage && finalStorage.accounts.length > 0) {
                 actualAccountCount = finalStorage.accounts.length;
               }
             } catch {
+              // Fall back to accounts.length if we can't read storage
             }
 
             const successMessage = refreshAccountIndex !== undefined
