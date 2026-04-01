@@ -1088,7 +1088,16 @@ describe("transform/gemini", () => {
       const tools = payload.tools as Array<Record<string, unknown>>;
       const decls = tools[0]!.functionDeclarations as Array<Record<string, unknown>>;
       expect(decls[0]!.name).toBe("test_fn");
-      expect(decls[0]!.parameters).toEqual({ type: "OBJECT", properties: {} });
+      expect(decls[0]!.parameters).toEqual({
+        type: "OBJECT",
+        properties: {
+          _placeholder: {
+            type: "BOOLEAN",
+            description: "Placeholder parameter. Always pass true.",
+          },
+        },
+        required: ["_placeholder"],
+      });
     });
 
     it("extracts schema from custom.input_schema", () => {
@@ -1213,7 +1222,16 @@ describe("transform/gemini", () => {
       
       const tools = payload.tools as Array<Record<string, unknown>>;
       const decls = tools[0]!.functionDeclarations as Array<Record<string, unknown>>;
-      expect(decls[0]!.parameters).toEqual({ type: "OBJECT", properties: {} });
+      expect(decls[0]!.parameters).toEqual({
+        type: "OBJECT",
+        properties: {
+          _placeholder: {
+            type: "BOOLEAN",
+            description: "Placeholder parameter. Always pass true.",
+          },
+        },
+        required: ["_placeholder"],
+      });
     });
 
     it("generates default name when missing", () => {
