@@ -421,9 +421,9 @@ If you encounter errors during a session:
 // ~/.config/opencode/oh-my-opencode.json
 {
   "google_auth": false,
-  "agents": {
-    "frontend-ui-ux-engineer": { "model": "google/antigravity-gemini-3-pro" },
-    "document-writer": { "model": "google/antigravity-gemini-3-flash" }
+  "categories": {
+    "visual-engineering": { "model": "google/gemini-3-pro" },
+    "writing": { "model": "google/gemini-3-flash" }
   }
 }
 ```
