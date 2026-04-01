@@ -1417,7 +1417,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
       
       // Note: AccountManager now ensures the current auth is always included in accounts
 
-      const accountManager = await AccountManager.loadFromDisk(auth);
+      let accountManager = await AccountManager.loadFromDisk(auth);
       activeAccountManager = accountManager;
       if (accountManager.getAccountCount() > 0) {
         accountManager.requestSaveToDisk();
@@ -1468,9 +1468,8 @@ export const createAntigravityPlugin = (providerId: string) => async (
             return fetch(input, init);
           }
 
-          if (accountManager.getAccountCount() === 0) {
-            throw new Error("No Antigravity accounts configured. Run `opencode auth login`.");
-          }
+          accountManager = await AccountManager.loadFromDisk(latestAuth);
+          activeAccountManager = accountManager;
 
           const urlString = toUrlString(input);
           const family = getModelFamilyFromUrl(urlString);
@@ -1481,6 +1480,26 @@ export const createAntigravityPlugin = (providerId: string) => async (
             debugLines.push(line);
           };
           pushDebug(`request=${urlString}`);
+          let reloadedProviderState = false;
+          const reloadProviderState = async (reason: string): Promise<boolean> => {
+            if (reloadedProviderState) {
+              return false;
+            }
+            const reloadedAuth = await getAuth();
+            if (!isOAuthAuth(reloadedAuth)) {
+              return false;
+            }
+            reloadedProviderState = true;
+            accountManager = await AccountManager.loadFromDisk(reloadedAuth);
+            activeAccountManager = accountManager;
+            rateLimitStateByAccountQuota.clear();
+            emptyResponseAttempts.clear();
+            accountFailureState.clear();
+            rateLimitToastShown = false;
+            softQuotaToastShown = false;
+            pushDebug(`reload-provider-state reason=${reason} accounts=${accountManager.getAccountCount()}`);
+            return true;
+          };
 
           type FailureContext = {
             response: Response;
@@ -1561,6 +1580,9 @@ export const createAntigravityPlugin = (providerId: string) => async (
             } = routingDecision;
             
             if (accountCount === 0) {
+              if (await reloadProviderState("no-accounts")) {
+                continue;
+              }
               throw new Error("No Antigravity accounts available. Run `opencode auth login`.");
             }
 
@@ -1653,6 +1675,9 @@ export const createAntigravityPlugin = (providerId: string) => async (
               // 0 means disabled (wait indefinitely)
               const maxWaitMs = (config.max_rate_limit_wait_seconds ?? 300) * 1000;
               if (maxWaitMs > 0 && waitMs > maxWaitMs) {
+                if (await reloadProviderState(`all-rate-limited:${family}`)) {
+                  continue;
+                }
                 const waitTimeFormatted = formatWaitTime(waitMs);
                 await showToast(
                   `Rate limited for ${waitTimeFormatted}. Try again later or add another account.`,
@@ -1832,6 +1857,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
               const warmupUrl = toWarmupStreamUrl(prepared.request);
               const warmupHeaders = new Headers(prepared.init.headers ?? {});
               warmupHeaders.set("accept", "text/event-stream");
+              warmupHeaders.delete("x-goog-api-key");
 
               const warmupInit: RequestInit = {
                 ...prepared.init,
@@ -1984,6 +2010,13 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   },
                 );
 
+                const requestHeaders = new Headers(prepared.init.headers ?? {});
+                requestHeaders.delete("x-goog-api-key");
+                const requestInit: RequestInit = {
+                  ...prepared.init,
+                  headers: requestHeaders,
+                };
+
                 const originalUrl = toUrlString(input);
                 const resolvedUrl = toUrlString(prepared.request);
                 pushDebug(`endpoint=${currentEndpoint}`);
@@ -1991,9 +2024,9 @@ export const createAntigravityPlugin = (providerId: string) => async (
                 const debugContext = startAntigravityDebugRequest({
                   originalUrl,
                   resolvedUrl,
-                  method: prepared.init.method,
-                  headers: prepared.init.headers,
-                  body: prepared.init.body,
+                  method: requestInit.method,
+                  headers: requestInit.headers,
+                  body: requestInit.body,
                   streaming: prepared.streaming,
                   projectId: projectContext.effectiveProjectId,
                 });
@@ -2027,7 +2060,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   tokenConsumed = getTokenTracker().consume(account.index);
                 }
 
-                const response = await fetch(prepared.request, prepared.init);
+                const response = await fetch(prepared.request, requestInit);
                 pushDebug(`status=${response.status} ${response.statusText}`);
 
 
