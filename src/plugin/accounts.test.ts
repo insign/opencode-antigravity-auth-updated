@@ -1863,6 +1863,6 @@ describe("resolveQuotaGroup", () => {
   it("model takes precedence over family", () => {
     // Even if family says claude, model determines the quota group
     expect(resolveQuotaGroup("gemini", "gemini-2.5-flash")).toBe("gemini-flash");
-    expect(resolveQuotaGroup("gemini", "gemini-3-pro")).toBe("gemini-pro");
+    expect(resolveQuotaGroup("gemini", "gemini-3.1-pro")).toBe("gemini-pro");
   });
 });

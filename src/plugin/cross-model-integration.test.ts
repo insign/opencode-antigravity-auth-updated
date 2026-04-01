@@ -242,7 +242,7 @@ describe("Cross-Model Session Integration", () => {
       };
 
       const result = sanitizeCrossModelPayload(payload, {
-        targetModel: "gemini-3-pro-low",
+        targetModel: "gemini-3.1-pro-low",
       });
 
       const sanitized = result.payload as typeof payload;
@@ -352,10 +352,10 @@ describe("Cross-Model Session Integration", () => {
 
   describe("Model family detection", () => {
     it("correctly identifies Gemini models", () => {
-      expect(getModelFamily("gemini-3-pro-low")).toBe("gemini");
+      expect(getModelFamily("gemini-3.1-pro-low")).toBe("gemini");
       expect(getModelFamily("gemini-3-flash")).toBe("gemini");
       expect(getModelFamily("gemini-2.5-pro")).toBe("gemini");
-      expect(getModelFamily("gemini-3-pro-high")).toBe("gemini");
+      expect(getModelFamily("gemini-3.1-pro-high")).toBe("gemini");
     });
 
     it("correctly identifies Claude models", () => {

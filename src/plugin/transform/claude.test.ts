@@ -33,7 +33,7 @@ describe("isClaudeModel", () => {
   });
 
   it("returns false for non-claude models", () => {
-    expect(isClaudeModel("gemini-3-pro")).toBe(false);
+    expect(isClaudeModel("gemini-3.1-pro")).toBe(false);
     expect(isClaudeModel("gpt-4")).toBe(false);
     expect(isClaudeModel("llama-3")).toBe(false);
     expect(isClaudeModel("")).toBe(false);
@@ -60,6 +60,7 @@ describe("isClaudeThinkingModel", () => {
 
   it("returns true for prefixed thinking models", () => {
     expect(isClaudeThinkingModel("antigravity-claude-sonnet-4-5-thinking")).toBe(true);
+    expect(isClaudeThinkingModel("antigravity-claude-sonnet-4-6-thinking")).toBe(true);
     expect(isClaudeThinkingModel("google/claude-opus-4-5-thinking-high")).toBe(true);
   });
 
@@ -70,7 +71,7 @@ describe("isClaudeThinkingModel", () => {
   });
 
   it("returns false for non-claude models", () => {
-    expect(isClaudeThinkingModel("gemini-3-pro-thinking")).toBe(false);
+    expect(isClaudeThinkingModel("gemini-3.1-pro-thinking")).toBe(false);
     expect(isClaudeThinkingModel("gpt-4-thinking")).toBe(false);
   });
 
