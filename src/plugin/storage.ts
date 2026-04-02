@@ -484,8 +484,6 @@ export function mergeAccountStorage(
           // An explicit empty object means limits were cleared and should overwrite older disk state.
           rateLimitResetTimes: mergedRateLimitResetTimes,
           proxyUrl: acc.proxyUrl ?? existingAcc.proxyUrl,
-          // An explicit empty object means limits were cleared and should overwrite older disk state.
-          rateLimitResetTimes: mergedRateLimitResetTimes,
           lastUsed: Math.max(existingAcc.lastUsed || 0, acc.lastUsed || 0),
         });
       } else {

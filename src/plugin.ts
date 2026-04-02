@@ -967,14 +967,9 @@ async function persistAccountPool(
       ...existing,
       email: result.email ?? existing.email,
       refreshToken: parts.refreshToken,
-<<<<<<< HEAD
       projectId: existing.projectId ?? parts.projectId,
       managedProjectId: existing.managedProjectId ?? parts.managedProjectId,
-=======
-      projectId: parts.projectId ?? existing.projectId,
-      managedProjectId: parts.managedProjectId ?? existing.managedProjectId,
       proxyUrl: proxyUrl !== undefined ? proxyUrl : existing.proxyUrl,
->>>>>>> port-pr-301
       lastUsed: now,
     };
     
@@ -1496,33 +1491,25 @@ export const createAntigravityPlugin = (providerId: string) => async (
         return "Error: Not authenticated with Antigravity. Please run `opencode auth login` to authenticate.";
       }
 
+      const authParts = parseRefreshParts(auth.refresh);
+      const account = activeAccountManager
+        ?.getAccounts()
+        .find((a) => a.parts.refreshToken === authParts.refreshToken);
+
       let projectContext: ProjectContextResult
       try {
-        projectContext = await ensureProjectContext(auth)
+        projectContext = await ensureProjectContext(auth, account?.proxyUrl)
       } catch (error) {
         return `Error: Failed to resolve project context: ${error instanceof Error ? error.message : String(error)}`
       }
 
-<<<<<<< HEAD
       const projectId = projectContext.effectiveProjectId
       let accessToken = projectContext.auth.access || auth.access
 
       if (!accessToken || accessTokenExpired(projectContext.auth)) {
         try {
-          const refreshed = await refreshAccessToken(projectContext.auth, client, providerId)
+          const refreshed = await refreshAccessToken(projectContext.auth, client, providerId, account?.proxyUrl)
           accessToken = refreshed?.access
-=======
-      const account = activeAccountManager
-        ?.getAccounts()
-        .find(a => a.parts.refreshToken === parts.refreshToken);
-
-      // Ensure we have a valid access token
-      let accessToken = auth.access;
-      if (!accessToken || accessTokenExpired(auth)) {
-        try {
-          const refreshed = await refreshAccessToken(auth, client, providerId, account?.proxyUrl);
-          accessToken = refreshed?.access;
->>>>>>> port-pr-301
         } catch (error) {
           return `Error: Failed to refresh access token: ${error instanceof Error ? error.message : String(error)}`
         }
