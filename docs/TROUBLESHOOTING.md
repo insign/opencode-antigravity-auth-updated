@@ -50,16 +50,16 @@ Stop-Process -Name "opencode" -Force -ErrorAction SilentlyContinue
 **macOS/Linux:**
 ```bash
 rm -f ~/.config/opencode/antigravity-accounts.json
-rm -rf ~/.cache/opencode/node_modules/opencode-antigravity-auth
-rm -rf ~/.bun/install/cache/opencode-antigravity-auth*
+rm -rf ~/.cache/opencode/node_modules/opencode-antigravity-auth-updated
+rm -rf ~/.bun/install/cache/opencode-antigravity-auth-updated*
 opencode auth login
 ```
 
 **Windows (PowerShell):**
 ```powershell
 Remove-Item "$env:APPDATA\opencode\antigravity-accounts.json" -Force -ErrorAction SilentlyContinue
-Remove-Item "$env:LOCALAPPDATA\opencode\Cache\node_modules\opencode-antigravity-auth" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item "$env:USERPROFILE\.bun\install\cache\opencode-antigravity-auth*" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "$env:LOCALAPPDATA\opencode\Cache\node_modules\opencode-antigravity-auth-updated" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "$env:USERPROFILE\.bun\install\cache\opencode-antigravity-auth-updated*" -Recurse -Force -ErrorAction SilentlyContinue
 opencode auth login
 ```
 
@@ -78,7 +78,7 @@ The correct key is `plugin` (singular):
 
 ```json
 {
-  "plugin": ["opencode-antigravity-auth@latest"]
+  "plugin": ["opencode-antigravity-auth-updated@latest"]
 }
 ```
 
@@ -104,18 +104,18 @@ Invalid SemVer
 **macOS / Linux:**
 ```bash
 cd ~/.cache/opencode
-bun add opencode-antigravity-auth@latest
+bun add opencode-antigravity-auth-updated@latest
 ```
 
 **Windows (PowerShell):**
 ```powershell
 Set-Location "$env:USERPROFILE\.cache\opencode"
-bun add opencode-antigravity-auth@latest
+bun add opencode-antigravity-auth-updated@latest
 ```
 
 Then restart OpenCode.
 
-> If you intentionally run beta channel, use `bun add opencode-antigravity-auth@beta` instead.
+> If you intentionally run beta channel, use `bun add opencode-antigravity-auth-updated@beta` instead.
 
 ---
 
@@ -165,7 +165,7 @@ Invalid JSON payload received. Unknown name "parameters" at 'request.tools[0]'
 **Solutions:**
 1. **Update to latest beta:**
    ```json
-   { "plugin": ["opencode-antigravity-auth@beta"] }
+   { "plugin": ["opencode-antigravity-auth-updated@beta"] }
    ```
 
 2. **Disable MCP servers** one-by-one to find the problematic one
@@ -184,7 +184,7 @@ Some MCP servers have schemas incompatible with Antigravity's strict JSON format
 **Diagnosis:**
 1. Disable all MCP servers in your config
 2. Enable one-by-one until error reappears
-3. Report the specific MCP in a [GitHub issue](https://github.com/NoeFabris/opencode-antigravity-auth/issues)
+3. Report the specific MCP in a [GitHub issue](https://github.com/insign/opencode-antigravity-auth-updated/issues)
 
 ---
 
@@ -255,14 +255,14 @@ If you only have one account, you'll likely have a better experience using [Anti
 If adding new accounts:
 1. Delete accounts file: `rm ~/.config/opencode/antigravity-accounts.json`
 2. Re-authenticate: `opencode auth login`
-3. Update to latest beta: `"plugin": ["opencode-antigravity-auth@beta"]`
+3. Update to latest beta: `"plugin": ["opencode-antigravity-auth-updated@beta"]`
 4. Consider "warming up" the account in Antigravity IDE first
 
 </details>
 
 **What to report:**
 
-If you're seeing unusual rate limit behavior, please share in a [GitHub issue](https://github.com/NoeFabris/opencode-antigravity-auth/issues):
+If you're seeing unusual rate limit behavior, please share in a [GitHub issue](https://github.com/insign/opencode-antigravity-auth-updated/issues):
 - Status codes from debug logs (403, 429, etc.)
 - How long the rate-limit state persists
 - Number of accounts and selection strategy used
@@ -359,7 +359,7 @@ ssh -L 51121:localhost:51121 user@remote
 ## Migrating Accounts Between Machines
 
 When copying `antigravity-accounts.json` to a new machine:
-1. Ensure the plugin is installed: `"plugin": ["opencode-antigravity-auth@beta"]`
+1. Ensure the plugin is installed: `"plugin": ["opencode-antigravity-auth-updated@beta"]`
 2. Copy `~/.config/opencode/antigravity-accounts.json`
 3. If you get "API key missing" error, the refresh token may be invalid — re-authenticate
 
@@ -374,7 +374,7 @@ DCP creates synthetic assistant messages that lack thinking blocks. **List this 
 ```json
 {
   "plugin": [
-    "opencode-antigravity-auth@latest",
+    "opencode-antigravity-auth-updated@latest",
     "@tarquinen/opencode-dcp@latest"
   ]
 }
@@ -466,4 +466,4 @@ npx tsx script/test-regression.ts --dry-run     # List tests
 
 ## Still stuck?
 
-Open an issue on [GitHub](https://github.com/NoeFabris/opencode-antigravity-auth/issues).
+Open an issue on [GitHub](https://github.com/insign/opencode-antigravity-auth-updated/issues).

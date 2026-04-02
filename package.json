@@ -1,6 +1,6 @@
 {
-    "name": "opencode-antigravity-auth",
-    "version": "1.6.0",
+    "name": "opencode-antigravity-auth-updated",
+    "version": "1.6.1",
     "description": "Google Antigravity IDE OAuth auth plugin for Opencode - access Gemini 3 Pro and Claude 4.6 using Google credentials",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -9,11 +9,11 @@
     "author": "noefabris",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/NoeFabris/opencode-antigravity-auth.git"
+        "url": "git+https://github.com/insign/opencode-antigravity-auth-updated.git"
     },
-    "homepage": "https://github.com/NoeFabris/opencode-antigravity-auth#readme",
+    "homepage": "https://github.com/insign/opencode-antigravity-auth-updated#readme",
     "bugs": {
-        "url": "https://github.com/NoeFabris/opencode-antigravity-auth/issues"
+        "url": "https://github.com/insign/opencode-antigravity-auth-updated/issues"
     },
     "keywords": [
         "opencode",

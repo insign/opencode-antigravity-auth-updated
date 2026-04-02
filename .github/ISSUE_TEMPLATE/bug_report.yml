@@ -19,8 +19,8 @@ body:
         > Issues must be written in English. Issues in other languages will be closed immediately.
 
         Check the following resources first:
-        - **[📋 Troubleshooting Guide](https://github.com/NoeFabris/opencode-antigravity-auth/blob/main/docs/TROUBLESHOOTING.md)** - common issues and solutions
-        - [Existing issues](https://github.com/NoeFabris/opencode-antigravity-auth/issues?q=is%3Aissue) - your issue may already be reported
+        - **[📋 Troubleshooting Guide](https://github.com/insign/opencode-antigravity-auth-updated/blob/main/docs/TROUBLESHOOTING.md)** - common issues and solutions
+        - [Existing issues](https://github.com/insign/opencode-antigravity-auth-updated/issues?q=is%3Aissue) - your issue may already be reported
 
         **Issues without debug logs will be closed.**
 
@@ -31,9 +31,9 @@ body:
       options:
         - label: I have searched existing issues for duplicates
           required: true
-        - label: I have read the [📋 Troubleshooting Guide](https://github.com/NoeFabris/opencode-antigravity-auth/blob/main/docs/TROUBLESHOOTING.md)
+        - label: I have read the [📋 Troubleshooting Guide](https://github.com/insign/opencode-antigravity-auth-updated/blob/main/docs/TROUBLESHOOTING.md)
           required: true
-        - label: I have read the [README](https://github.com/NoeFabris/opencode-antigravity-auth#readme) installation instructions
+        - label: I have read the [README](https://github.com/insign/opencode-antigravity-auth-updated#readme) installation instructions
 
   - type: dropdown
     id: model
@@ -127,7 +127,7 @@ body:
     id: plugin-version
     attributes:
       label: Plugin version
-      description: "Run: `npm list opencode-antigravity-auth -g 2>/dev/null || npm list opencode-antigravity-auth`"
+      description: "Run: `npm list opencode-antigravity-auth-updated -g 2>/dev/null || npm list opencode-antigravity-auth-updated`"
       placeholder: "e.g., 1.2.9-beta.5"
     validations:
       required: true

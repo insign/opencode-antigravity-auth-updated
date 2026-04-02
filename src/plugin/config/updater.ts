@@ -41,7 +41,7 @@ export interface UpdateConfigOptions {
 // Constants
 // =============================================================================
 
-const PLUGIN_NAME = "opencode-antigravity-auth@latest";
+const PLUGIN_NAME = "opencode-antigravity-auth-updated@latest";
 const SCHEMA_URL = "https://opencode.ai/config.json";
 const OPENCODE_JSON_FILENAME = "opencode.json";
 const OPENCODE_JSONC_FILENAME = "opencode.jsonc";
