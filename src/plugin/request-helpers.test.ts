@@ -171,7 +171,7 @@ describe("isThinkingCapableModel", () => {
   });
 
   it("returns true for models with 'gemini-3' in name", () => {
-    expect(isThinkingCapableModel("gemini-3-pro")).toBe(true);
+    expect(isThinkingCapableModel("gemini-3.1-pro")).toBe(true);
     expect(isThinkingCapableModel("GEMINI-3-flash")).toBe(true);
     expect(isThinkingCapableModel("gemini-3")).toBe(true);
   });

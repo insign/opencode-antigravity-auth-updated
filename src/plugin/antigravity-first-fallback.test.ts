@@ -138,14 +138,14 @@ describe("Antigravity-first fallback", () => {
       const manager = new AccountManager(undefined, stored);
       const accounts = manager.getAccounts();
       
-      // Mark account 0's antigravity as rate-limited for gemini-3-pro
-      manager.markRateLimited(accounts[0]!, 60000, "gemini", "antigravity", "gemini-3-pro");
+      // Mark account 0's antigravity as rate-limited for gemini-3.1-pro
+      manager.markRateLimited(accounts[0]!, 60000, "gemini", "antigravity", "gemini-3.1-pro");
 
-      // Account 1 should have antigravity available for gemini-3-pro
+      // Account 1 should have antigravity available for gemini-3.1-pro
       const hasOther = manager.hasOtherAccountWithAntigravityAvailable(
         accounts[0]!.index,
         "gemini",
-        "gemini-3-pro"
+        "gemini-3.1-pro"
       );
 
       expect(hasOther).toBe(true);
