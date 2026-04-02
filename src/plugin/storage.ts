@@ -195,6 +195,7 @@ export interface AccountMetadataV3 {
   cooldownReason?: CooldownReason;
   /** Per-account device fingerprint for rate limit mitigation */
   fingerprint?: import("./fingerprint").Fingerprint;
+  proxyUrl?: string;  // URL like "http://user:pass@host:port" (SOCKS5 not supported)
   fingerprintHistory?: import("./fingerprint").FingerprintVersion[];
   /** Set when Google asks the user to verify this account before requests can continue. */
   verificationRequired?: boolean;
@@ -478,6 +479,9 @@ export function mergeAccountStorage(
           // Existing disk values take priority so manual overrides survive auth refresh merges.
           projectId: existingAcc.projectId ?? acc.projectId,
           managedProjectId: existingAcc.managedProjectId ?? acc.managedProjectId,
+          // An explicit empty object means limits were cleared and should overwrite older disk state.
+          rateLimitResetTimes: mergedRateLimitResetTimes,
+          proxyUrl: acc.proxyUrl ?? existingAcc.proxyUrl,
           // An explicit empty object means limits were cleared and should overwrite older disk state.
           rateLimitResetTimes: mergedRateLimitResetTimes,
           lastUsed: Math.max(existingAcc.lastUsed || 0, acc.lastUsed || 0),
