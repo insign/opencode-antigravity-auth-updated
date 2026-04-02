@@ -17,14 +17,18 @@ import {
   appendFileSync,
 } from "node:fs";
 
-const { lockMock } = vi.hoisted(() => ({
+const { lockMock, unlockMock } = vi.hoisted(() => ({
   lockMock: vi.fn(),
+  unlockMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("proper-lockfile", () => ({
   default: {
     lock: lockMock,
+    unlock: unlockMock,
   },
+  lock: lockMock,
+  unlock: unlockMock,
 }));
 
 describe("deduplicateAccountsByEmail", () => {

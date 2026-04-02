@@ -12,9 +12,11 @@ import {
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { randomBytes } from "node:crypto";
-import lockfile from "proper-lockfile";
+import * as lockfileModule from "proper-lockfile";
 import type { HeaderStyle } from "../constants";
 import { createLogger } from "./logger";
+
+const lockfile = ((lockfileModule as { default?: unknown }).default ?? lockfileModule) as typeof import("proper-lockfile");
 
 const log = createLogger("storage");
 

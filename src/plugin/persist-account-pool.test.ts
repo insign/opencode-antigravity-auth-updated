@@ -16,7 +16,10 @@ import type { AccountStorageV4, AccountMetadataV3 } from "./storage";
 vi.mock("proper-lockfile", () => ({
   default: {
     lock: vi.fn().mockResolvedValue(vi.fn().mockResolvedValue(undefined)),
+    unlock: vi.fn().mockResolvedValue(undefined),
   },
+  lock: vi.fn().mockResolvedValue(vi.fn().mockResolvedValue(undefined)),
+  unlock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("node:fs", async () => {
