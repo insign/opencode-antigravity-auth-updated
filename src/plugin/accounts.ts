@@ -153,6 +153,7 @@ export interface ManagedAccount {
   verificationRequired?: boolean;
   verificationRequiredAt?: number;
   verificationRequiredReason?: string;
+  verificationRequiredType?: string;
   verificationUrl?: string;
 }
 
@@ -369,6 +370,7 @@ export class AccountManager {
             verificationRequired: acc.verificationRequired,
             verificationRequiredAt: acc.verificationRequiredAt,
             verificationRequiredReason: acc.verificationRequiredReason,
+            verificationRequiredType: acc.verificationRequiredType,
             verificationUrl: acc.verificationUrl,
           };
         })
@@ -825,7 +827,7 @@ export class AccountManager {
     return true;
   }
 
-  markAccountVerificationRequired(accountIndex: number, reason?: string, verifyUrl?: string): boolean {
+  markAccountVerificationRequired(accountIndex: number, reason?: string, verifyUrl?: string, verificationType?: string): boolean {
     const account = this.accounts[accountIndex];
     if (!account) {
       return false;
@@ -834,6 +836,7 @@ export class AccountManager {
     account.verificationRequired = true;
     account.verificationRequiredAt = nowMs();
     account.verificationRequiredReason = reason?.trim() || undefined;
+    account.verificationRequiredType = verificationType?.trim() || undefined;
 
     const normalizedVerifyUrl = verifyUrl?.trim();
     if (normalizedVerifyUrl) {
@@ -859,12 +862,14 @@ export class AccountManager {
     const hadMetadata = (
       account.verificationRequiredAt !== undefined ||
       account.verificationRequiredReason !== undefined ||
+      account.verificationRequiredType !== undefined ||
       account.verificationUrl !== undefined
     );
 
     account.verificationRequired = false;
     account.verificationRequiredAt = undefined;
     account.verificationRequiredReason = undefined;
+    account.verificationRequiredType = undefined;
     account.verificationUrl = undefined;
 
     if (enableAccount && wasVerificationRequired && account.enabled === false) {
@@ -1021,6 +1026,7 @@ export class AccountManager {
         verificationRequired: a.verificationRequired,
         verificationRequiredAt: a.verificationRequiredAt,
         verificationRequiredReason: a.verificationRequiredReason,
+        verificationRequiredType: a.verificationRequiredType,
         verificationUrl: a.verificationUrl,
       })),
       activeIndex: claudeIndex,
