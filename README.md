@@ -622,6 +622,9 @@ Most users don't need to configure anything — defaults work well.
 | `agy_sdk.prefer_for_gemini` | `false` | When API keys are configured, use the Gemini API route before OAuth-backed Antigravity for Gemini models. |
 | `agy_sdk.api_key_fallback` | `true` | Use configured API keys / Cloud Projects when OAuth Antigravity and legacy Gemini CLI quotas are unavailable. |
 | `model_discovery.enabled` | `true` | Load provider models dynamically from Gemini API / Antigravity model APIs, with bundled static definitions as fallback. |
+| `search.model` | `null` | Pin the Google Search model and try it first; when `null`, the plugin uses discovery and fallbacks. |
+| `search.auto_discover` | `true` | Request the live model list and try the newest grounding-capable Gemini Flash model. |
+| `search.fallback_models` | `["gemini-2.5-flash", "gemini-3-flash"]` | Additional models tried in order when earlier candidates fail. |
 
 ### Antigravity SDK / Gemini API keys
 

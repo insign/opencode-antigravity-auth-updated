@@ -145,6 +145,12 @@
       "minimum": 0,
       "maximum": 3600
     },
+    "request_timeout_seconds": {
+      "default": 600,
+      "type": "number",
+      "minimum": 30,
+      "maximum": 3600
+    },
     "quota_fallback": {
       "default": false,
       "type": "boolean",
@@ -227,6 +233,78 @@
           "type": "boolean"
         }
       },
+      "additionalProperties": false
+    },
+    "search": {
+      "default": {
+        "enabled": true,
+        "model": null,
+        "auto_discover": true,
+        "preferred_tier": "high",
+        "fallback_models": [
+          "gemini-2.5-flash",
+          "gemini-3-flash"
+        ],
+        "discover_cache_seconds": 300
+      },
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "model": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "auto_discover": {
+          "default": true,
+          "type": "boolean"
+        },
+        "preferred_tier": {
+          "default": "high",
+          "type": "string",
+          "enum": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "fallback_models": {
+          "default": [
+            "gemini-2.5-flash",
+            "gemini-3-flash"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "discover_cache_seconds": {
+          "default": 300,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        }
+      },
+      "required": [
+        "enabled",
+        "model",
+        "auto_discover",
+        "preferred_tier",
+        "fallback_models",
+        "discover_cache_seconds"
+      ],
       "additionalProperties": false
     },
     "account_selection_strategy": {

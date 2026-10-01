@@ -53,6 +53,7 @@ import { initLogger, createLogger } from "./plugin/logger";
 import { initHealthTracker, getHealthTracker, initTokenTracker, getTokenTracker } from "./plugin/rotation";
 import { initAntigravityVersion } from "./plugin/version";
 import { executeSearch } from "./plugin/search";
+import { resolveSearchModelChain } from "./plugin/search-model";
 import {
   createAntigravityOnlyModelErrorResponse,
   extractRequestedGeminiModel,
@@ -1676,6 +1677,16 @@ export const createAntigravityPlugin = (providerId: string) => async (
         return "Error: No valid access token available. Please run `opencode auth login` to re-authenticate."
       }
 
+      // Resolve the ordered search model chain (explicit -> live-discovered -> fallbacks).
+      let modelChain: string[] | undefined;
+      try {
+        modelChain = await resolveSearchModelChain(config.search, accessToken, projectId);
+      } catch (error) {
+        log.debug("Failed to resolve search model chain", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
       return executeSearch(
         {
           query: args.query,
@@ -1685,6 +1696,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
         accessToken,
         projectId,
         ctx.abort,
+        modelChain,
       );
     },
   });

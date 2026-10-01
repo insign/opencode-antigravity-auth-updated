@@ -135,4 +135,85 @@ describe("executeSearch", () => {
       "Bearer bearer-token-xyz",
     );
   });
+
+  it("falls back to the next model when the first is unavailable", async () => {
+    const spy = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { model: string };
+      if (body.model === "model-a") {
+        return Promise.resolve({
+          ok: false,
+          status: 503,
+          statusText: "Service Unavailable",
+          text: () => Promise.resolve("no capacity"),
+          json: () => Promise.resolve({}),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: () => Promise.resolve(""),
+        json: () => Promise.resolve(makeResponse("second model answer")),
+      });
+    });
+    vi.stubGlobal("fetch", spy);
+
+    const result = await executeSearch({ query: "q" }, "tok", "proj", undefined, [
+      "model-a",
+      "model-b",
+    ]);
+
+    expect(result).toContain("second model answer");
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a 'no longer available' 200 body as a failure and advances", async () => {
+    let call = 0;
+    const spy = vi.fn().mockImplementation(() => {
+      call += 1;
+      const body =
+        call === 1
+          ? makeResponse(
+              "Gemini 3.5 Flash is no longer available. Please switch to Gemini 3.7 Flash.",
+            )
+          : makeResponse("fresh answer");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: () => Promise.resolve(""),
+        json: () => Promise.resolve(body),
+      });
+    });
+    vi.stubGlobal("fetch", spy);
+
+    const result = await executeSearch({ query: "q" }, "tok", "proj", undefined, [
+      "old-flash",
+      "new-flash",
+    ]);
+
+    expect(result).toContain("fresh answer");
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns the last error when every model in the chain fails", async () => {
+    const spy = vi.fn();
+    spy.mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      text: () => Promise.resolve("bad"),
+      json: () => Promise.resolve({}),
+    });
+    vi.stubGlobal("fetch", spy);
+
+    const result = await executeSearch({ query: "q" }, "tok", "proj", undefined, [
+      "a",
+      "b",
+    ]);
+
+    expect(result).toContain("## Search Error");
+    expect(result).toContain("400");
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
 });

@@ -83,3 +83,27 @@ describe("model_discovery config", () => {
     });
   });
 });
+
+describe("search config", () => {
+  it("includes search defaults in DEFAULT_CONFIG", () => {
+    expect(DEFAULT_CONFIG.search).toMatchObject({
+      enabled: true,
+      model: null,
+      auto_discover: true,
+      preferred_tier: "high",
+      fallback_models: ["gemini-2.5-flash", "gemini-3-flash"],
+      discover_cache_seconds: 300,
+    });
+  });
+
+  it("documents search in the JSON schema", () => {
+    const schemaPath = new URL("../../../assets/antigravity.schema.json", import.meta.url);
+    const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
+      properties?: Record<string, { type?: string; default?: unknown; description?: string }>;
+    };
+
+    const search = schema.properties?.search;
+    expect(search).toBeDefined();
+    expect(search?.type).toBe("object");
+  });
+});
