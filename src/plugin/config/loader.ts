@@ -105,6 +105,13 @@ function mergeConfigs(
           ...override.signature_cache,
         }
       : base.signature_cache,
+    // Deep merge search so a partial block keeps unspecified defaults
+    search: override.search
+      ? {
+          ...base.search,
+          ...override.search,
+        }
+      : base.search,
   };
 }
 

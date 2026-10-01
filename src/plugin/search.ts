@@ -214,18 +214,35 @@ function parseSearchResponse(data: AntigravitySearchResponse): SearchResult {
 // Main Search Function
 // ============================================================================
 
+const SEARCH_MODEL_UNAVAILABLE =
+  /no longer available|is not available|not available|please switch to|model not found|requested entity was not found/i;
+
 /**
- * Execute a Google Search using the Gemini grounding API.
- *
- * This makes a SEPARATE API call with only googleSearch/urlContext tools,
- * which is required because these tools cannot be combined with function declarations.
+ * Some backends answer HTTP 200 with an explanatory message instead of an error
+ * code when a model has been retired. Treat those (only when no sources were
+ * returned) as a failure so the next candidate model can be tried.
  */
-export async function executeSearch(
+function isUnavailableResponse(result: SearchResult): boolean {
+  if (result.sources.length > 0) {
+    return false;
+  }
+  return result.text.length > 0 && SEARCH_MODEL_UNAVAILABLE.test(result.text);
+}
+
+/**
+ * Attempt a single grounding request against one model.
+ *
+ * Returns `ok: false` with a formatted error string when the model should be
+ * skipped in favour of the next candidate (non-OK status, network error, or a
+ * "model unavailable" body).
+ */
+async function attemptSearch(
+  model: string,
   args: SearchArgs,
   accessToken: string,
   projectId: string,
   abortSignal?: AbortSignal,
-): Promise<string> {
+): Promise<{ ok: boolean; value: string }> {
   const { query, urls, thinking = true } = args;
 
   // Build prompt with optional URLs
@@ -262,7 +279,7 @@ export async function executeSearch(
   // Wrap in Antigravity format
   const wrappedBody = {
     project: projectId,
-    model: SEARCH_MODEL,
+    model,
     userAgent: "antigravity",
     requestId: generateRequestId(),
     request: {
@@ -275,6 +292,7 @@ export async function executeSearch(
   const url = `${ANTIGRAVITY_ENDPOINT}/v1internal:generateContent`;
 
   log.debug("Executing search", {
+    model,
     query,
     urlCount: urls?.length ?? 0,
     thinking,
@@ -294,20 +312,80 @@ export async function executeSearch(
 
     if (!response.ok) {
       const errorText = await response.text();
-      log.debug("Search API error", { status: response.status, error: errorText });
-      return `## Search Error\n\nFailed to execute search: ${response.status} ${response.statusText}\n\n${errorText}\n\nPlease try again with a different query.`;
+      log.debug("Search API error", { status: response.status, model, error: errorText });
+      return {
+        ok: false,
+        value: `## Search Error\n\nFailed to execute search: ${response.status} ${response.statusText}\n\n${errorText}\n\nPlease try again with a different query.`,
+      };
     }
 
     const data = (await response.json()) as AntigravitySearchResponse;
-    log.debug("Search response received", { hasResponse: !!data.response });
+    log.debug("Search response received", { model, hasResponse: !!data.response });
 
     const result = parseSearchResponse(data);
+
+    if (isUnavailableResponse(result)) {
+      const snippet = result.text.replace(/\s+/g, " ").slice(0, 200);
+      log.debug("Search model reported unavailable", { model, snippet });
+      return {
+        ok: false,
+        value: `## Search Error\n\nModel \`${model}\` is unavailable: ${snippet}\n\nPlease try again with a different query.`,
+      };
+    }
+
     const formatted = formatSearchResult(result);
-    log.debug("Search response formatted", { resultLength: formatted.length });
-    return formatted;
+    log.debug("Search response formatted", { model, resultLength: formatted.length });
+    return { ok: true, value: formatted };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    log.debug("Search execution error", { error: message });
-    return `## Search Error\n\nFailed to execute search: ${message}. Please try again with a different query.`;
+    log.debug("Search execution error", { model, error: message });
+    return {
+      ok: false,
+      value: `## Search Error\n\nFailed to execute search: ${message}. Please try again with a different query.`,
+    };
   }
+}
+
+/**
+ * Execute a Google Search using the Gemini grounding API.
+ *
+ * This makes a SEPARATE API call with only googleSearch/urlContext tools,
+ * which is required because these tools cannot be combined with function declarations.
+ *
+ * When `modelChain` contains more than one model, each is tried in order until
+ * one returns a grounded answer; the last failure is returned when all fail.
+ */
+export async function executeSearch(
+  args: SearchArgs,
+  accessToken: string,
+  projectId: string,
+  abortSignal?: AbortSignal,
+  modelChain: string[] = [SEARCH_MODEL],
+): Promise<string> {
+  const chain = modelChain.length > 0 ? modelChain : [SEARCH_MODEL];
+  let lastError = "";
+
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i];
+    if (!model) {
+      continue;
+    }
+    const outcome = await attemptSearch(model, args, accessToken, projectId, abortSignal);
+
+    if (outcome.ok) {
+      return outcome.value;
+    }
+
+    lastError = outcome.value;
+    const isLast = i === chain.length - 1;
+    if (isLast || abortSignal?.aborted) {
+      break;
+    }
+    log.debug("Search model failed, trying next", {
+      model,
+      remaining: chain.length - i - 1,
+    });
+  }
+
+  return lastError;
 }

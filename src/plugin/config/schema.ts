@@ -77,6 +77,48 @@ export const ModelDiscoveryConfigSchema = z.object({
 export type ModelDiscoveryConfig = z.infer<typeof ModelDiscoveryConfigSchema>;
 
 /**
+ * Thinking tier used when choosing among discovered Gemini Flash variants.
+ */
+export const SearchTierSchema = z.enum(['minimal', 'low', 'medium', 'high']);
+export type SearchTier = z.infer<typeof SearchTierSchema>;
+
+/**
+ * Google Search grounding model selection.
+ *
+ * The search tool previously used a single hardcoded model, which breaks when
+ * that model is capacity-exhausted (429/503) or removed from the backend (404).
+ * This config resolves the model as an ordered chain instead:
+ *
+ *   1. `model` — explicit override, when set
+ *   2. Live-discovered Gemini Flash models from the Antigravity model list,
+ *      newest version first (when `auto_discover` is enabled)
+ *   3. `fallback_models` — static chain
+ *   4. The built-in `SEARCH_MODEL` last resort
+ *
+ * Each model is tried in order until one returns a grounded answer.
+ */
+export const SearchConfigSchema = z.object({
+  /** Master switch. When false, only `model` (or the built-in default) is used. */
+  enabled: z.boolean().default(true),
+
+  /** Explicit model id tried before discovery. When null, discovery/fallbacks decide. */
+  model: z.string().trim().min(1).nullable().default(null),
+
+  /** Request the live model list and try the newest grounding-capable Flash model. */
+  auto_discover: z.boolean().default(true),
+
+  /** Preferred thinking tier when choosing among discovered Flash variants. */
+  preferred_tier: SearchTierSchema.default('high'),
+
+  /** Static fallback chain tried after the explicit and discovered models. */
+  fallback_models: z.array(z.string().trim().min(1)).default(['gemini-2.5-flash', 'gemini-3-flash']),
+
+  /** How long (seconds) to cache the discovered model list. Set 0 to disable caching. */
+  discover_cache_seconds: z.number().min(0).max(86400).default(300),
+});
+export type SearchConfig = z.infer<typeof SearchConfigSchema>;
+
+/**
  * Signature cache configuration for persisting thinking block signatures to disk.
  */
 export const SignatureCacheConfigSchema = z.object({
@@ -357,6 +399,23 @@ export const AntigravityConfigSchema = z.object({
     gemini_api: true,
     antigravity: true,
   }),
+
+  /**
+   * Google Search grounding model selection.
+   *
+   * Resolves the search model as an ordered chain (explicit override, then the
+   * newest live-discovered Gemini Flash model, then static fallbacks) so search
+   * keeps working when a specific model is rate-limited, capacity-exhausted, or
+   * removed from the backend.
+   */
+  search: SearchConfigSchema.default({
+    enabled: true,
+    model: null,
+    auto_discover: true,
+    preferred_tier: 'high',
+    fallback_models: ['gemini-2.5-flash', 'gemini-3-flash'],
+    discover_cache_seconds: 300,
+  }),
   
   /**
    * Strategy for selecting accounts when making requests.
@@ -548,6 +607,14 @@ export const DEFAULT_CONFIG: AntigravityConfig = {
     enabled: true,
     gemini_api: true,
     antigravity: true,
+  },
+  search: {
+    enabled: true,
+    model: null,
+    auto_discover: true,
+    preferred_tier: 'high',
+    fallback_models: ['gemini-2.5-flash', 'gemini-3-flash'],
+    discover_cache_seconds: 300,
   },
   account_selection_strategy: 'hybrid',
   pid_offset_enabled: false,

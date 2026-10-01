@@ -93,6 +93,42 @@ When `false` (default), thinking is stripped:
 
 ---
 
+### Google Search grounding models
+
+The `google_search` tool resolves its model as an ordered chain instead of a
+single hardcoded id: an explicit `search.model` override first, then the
+newest live-discovered Gemini Flash model from the Antigravity model list,
+then `search.fallback_models`, then the built-in last resort. Each model is
+tried in order until one returns a grounded answer, so search survives
+capacity-exhausted (`429`/`503`), removed (`404`), or retired (answered with a
+"no longer available" message) models.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `search.enabled` | `true` | Master switch. When `false`, only `search.model` (or the built-in default) is used. |
+| `search.model` | `null` | Pin a model id and try it before discovery. Example: `"gemini-3.6-flash-high"`. |
+| `search.auto_discover` | `true` | Fetch the live model list and try the newest grounding-capable Flash model. |
+| `search.preferred_tier` | `"high"` | Thinking tier (`minimal`, `low`, `medium`, `high`) preferred among discovered variants. |
+| `search.fallback_models` | `["gemini-2.5-flash", "gemini-3-flash"]` | Static chain tried after the explicit and discovered models. |
+| `search.discover_cache_seconds` | `300` | How long to cache the fetched model list. `0` disables caching. |
+
+Example:
+
+```json
+{
+  "search": {
+    "preferred_tier": "medium",
+    "fallback_models": ["gemini-2.5-flash", "gemini-3-flash"]
+  }
+}
+```
+
+Only bare Flash grounding ids are eligible (`gemini-3.6-flash-high`,
+`gemini-3-flash`); non-grounding variants such as `-image`, `-lite`,
+`-agent`, and `-tiered` are skipped automatically.
+
+---
+
 ## Account Rotation
 
 Settings for managing multiple Google accounts.
